@@ -401,6 +401,51 @@ body.is-dragging { overflow: hidden; }
   transition: opacity .15s;
 }
 
+/* DYNAMIC ACTION ROWS */
+.action-row {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+  margin-bottom: 8px;
+  animation: fadeUp .18s ease both;
+}
+.action-row-num {
+  min-width: 24px; height: 24px;
+  background: var(--primary-light); color: var(--primary);
+  border-radius: 6px; font-size: 11px; font-weight: 700;
+  display: flex; align-items: center; justify-content: center;
+  flex-shrink: 0;
+}
+.action-row input {
+  flex: 1;
+  padding: 9px 12px;
+  border-radius: 9px;
+  font-size: 13px;
+}
+.action-row-del {
+  width: 30px; height: 30px; flex-shrink: 0;
+  border: 1px solid var(--border); background: var(--bg);
+  border-radius: 8px; display: flex; align-items: center; justify-content: center;
+  cursor: pointer; color: var(--text-muted); font-size: 11px;
+  transition: all .15s;
+}
+.action-row-del:hover { background: var(--red-light); color: var(--red); border-color: #fca5a5; }
+
+.btn-add-action {
+  width: 100%;
+  display: flex; align-items: center; justify-content: center; gap: 6px;
+  background: var(--bg); color: var(--text-sub);
+  border: 1.5px dashed var(--border); border-radius: 9px;
+  padding: 9px; margin-top: 2px;
+  font-family: 'Plus Jakarta Sans', sans-serif;
+  font-size: 13px; font-weight: 600; cursor: pointer;
+  transition: all .15s;
+}
+.btn-add-action:hover {
+  background: var(--primary-light); color: var(--primary);
+  border-color: #a5b4fc;
+}
+
 .loading { opacity:.85; pointer-events:none; cursor:not-allowed; }
 
 /* SEARCHABLE MESIN DROPDOWN */
@@ -736,7 +781,10 @@ body.is-dragging { overflow: hidden; }
 
     <div class="form-row">
       <div class="field-label" style="margin-bottom:6px">Action</div>
-      <textarea id="action" placeholder="Tulis tindakan, satu baris per langkah..."></textarea>
+      <div id="actionList"></div>
+      <button type="button" class="btn-add-action" onclick="addActionRow()">
+        <i class="fa-solid fa-plus"></i> Tambah Action
+      </button>
     </div>
 
     <button class="btn-primary" onclick="saveActivity()">
@@ -824,7 +872,11 @@ function loadHeader(){
 document.getElementById("tanggal").addEventListener("change",saveHeader);
 document.getElementById("shift").addEventListener("change",saveHeader);
 
-function openForm(){document.getElementById("formModal").classList.add("show");updateMesin();}
+function openForm(){
+  document.getElementById("formModal").classList.add("show");
+  updateMesin();
+  if(document.querySelectorAll(".action-row").length === 0) addActionRow();
+}
 function closeForm(){
   document.getElementById("formModal").classList.remove("show");
   clearForm();editIndex=null;selectedArea="Proses";selectedCls="proses";
@@ -909,8 +961,53 @@ document.addEventListener("click",function(e){
   if(wrapper && !wrapper.contains(e.target)) closeMesinDropdown();
 });
 
+function getActionLines(){
+  return Array.from(document.querySelectorAll(".action-row input"))
+    .map(i=>i.value.trim()).filter(Boolean);
+}
+
+function addActionRow(value=""){
+  const list = document.getElementById("actionList");
+  const idx  = list.children.length + 1;
+  const row  = document.createElement("div");
+  row.className = "action-row";
+  row.innerHTML = `
+    <div class="action-row-num">${idx}</div>
+    <input type="text" placeholder="Action ${idx}..." value="${value.replace(/"/g,'&quot;')}">
+    <button type="button" class="action-row-del" onclick="removeActionRow(this)">
+      <i class="fa-solid fa-xmark"></i>
+    </button>
+  `;
+  list.appendChild(row);
+  renumberActions();
+}
+
+function removeActionRow(btn){
+  const row = btn.closest(".action-row");
+  if(document.querySelectorAll(".action-row").length <= 1){
+    // keep at least 1 row, just clear it
+    row.querySelector("input").value = "";
+    return;
+  }
+  row.remove();
+  renumberActions();
+}
+
+function renumberActions(){
+  document.querySelectorAll(".action-row").forEach((row, i) => {
+    row.querySelector(".action-row-num").textContent = i + 1;
+    row.querySelector("input").placeholder = `Action ${i+1}...`;
+  });
+}
+
 function saveActivity(){
-  const data={area:selectedArea,areaCls:selectedCls,mesin:document.getElementById("mesin").value,downtime:document.getElementById("downtime").value,action:document.getElementById("action").value};
+  const actions = getActionLines();
+  const data={
+    area:selectedArea, areaCls:selectedCls,
+    mesin:document.getElementById("mesin").value,
+    downtime:document.getElementById("downtime").value,
+    action: actions.join("\n")
+  };
   if(editIndex===null)activities.push(data);
   else{activities[editIndex]=data;editIndex=null;}
   saveToLocal();renderTable();closeForm();
@@ -964,7 +1061,11 @@ function editAct(i){
   tabs[map[a.area]].classList.add("active",clsMap[a.area]);
   updateMesin(a.mesin);
   document.getElementById("downtime").value=a.downtime;
-  document.getElementById("action").value=a.action;
+  // populate action rows
+  clearActionRows();
+  const lines = a.action.split("\n").filter(l=>l.trim());
+  if(lines.length === 0){ addActionRow(); }
+  else { lines.forEach(l => addActionRow(l)); }
   document.getElementById("formModal").classList.add("show");
 }
 
@@ -1071,7 +1172,15 @@ function delay(ms){ return new Promise(r => setTimeout(r, ms)); }
 function resetData(){activities=[];checkedItems=[];localStorage.removeItem("activities");localStorage.removeItem("checkedItems");renderTable();renderChecklistList();}
 function saveToLocal(){localStorage.setItem("activities",JSON.stringify(activities));saveHeader();}
 function loadFromLocal(){const d=localStorage.getItem("activities");if(d){activities=JSON.parse(d);renderTable();}}
-function clearForm(){document.getElementById("downtime").value="";document.getElementById("action").value="";}
+function clearActionRows(){
+  document.getElementById("actionList").innerHTML = "";
+}
+
+function clearForm(){
+  document.getElementById("downtime").value="";
+  clearActionRows();
+  addActionRow();
+}
 function setTodayIfEmpty(){
   const el=document.getElementById("tanggal");
   if(!el.value){const d=new Date();el.value=`${d.getFullYear()}-${String(d.getMonth()+1).padStart(2,'0')}-${String(d.getDate()).padStart(2,'0')}`;}
