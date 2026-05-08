@@ -276,18 +276,6 @@ body.is-dragging { overflow: hidden; }
   .btn-submit-main { width:100%; }
 }
 
-/* FAB */
-.fab {
-  position:fixed; bottom:28px; right:28px;
-  width:52px; height:52px;
-  background:var(--primary); color:white; border:none;
-  border-radius:14px; font-size:20px;
-  display:flex; align-items:center; justify-content:center;
-  cursor:pointer; box-shadow:0 6px 20px rgba(99,102,241,.35);
-  z-index:50; transition:all .15s;
-}
-.fab:hover { background:var(--primary-hover); box-shadow:0 8px 28px rgba(99,102,241,.45); transform:scale(1.04); }
-
 /* MODAL */
 .modal {
   position:fixed; inset:0;
@@ -374,24 +362,14 @@ body.is-dragging { overflow: hidden; }
 }
 .btn-green:hover { background:#d1fae5; transform:none; }
 
-.btn-indigo {
+.btn-whatsapp {
   flex:1; display:flex; align-items:center; justify-content:center; gap:6px;
-  background:var(--primary); color:white; border:none; border-radius:8px;
+  background:#25D366; color:white; border:none; border-radius:8px;
   padding:10px 16px;
   font-family:'Plus Jakarta Sans',sans-serif;
   font-size:13px; font-weight:600; cursor:pointer; transition:background .15s;
 }
-.btn-indigo:hover { background:var(--primary-hover); transform:none; }
-
-.btn-ghost {
-  display:flex; align-items:center; gap:6px;
-  background:transparent; color:var(--text-sub);
-  border:1px solid var(--border); border-radius:8px;
-  padding:10px 16px;
-  font-family:'Plus Jakarta Sans',sans-serif;
-  font-size:13px; font-weight:600; cursor:pointer; transition:all .15s;
-}
-.btn-ghost:hover { background:var(--bg); color:var(--text); transform:none; }
+.btn-whatsapp:hover { background:#1ebe5d; transform:none; }
 
 #hasil {
   height:260px; font-family:'Courier New',monospace;
@@ -693,8 +671,6 @@ body.is-dragging { overflow: hidden; }
 
 </div>
 
-<button class="fab" onclick="openForm()"><i class="fa-solid fa-plus"></i></button>
-
 <!-- FORM MODAL -->
 <div id="formModal" class="modal">
   <div class="modal-box">
@@ -751,6 +727,8 @@ body.is-dragging { overflow: hidden; }
 </div>
 
 <!-- PREVIEW MODAL -->
+<!-- ✅ CHANGE 1: Removed "Tutup" button from btn-row -->
+<!-- ✅ CHANGE 2: Removed FAB (+) button -->
 <div id="previewModal" class="modal">
   <div class="modal-box">
     <div class="sheet-handle"></div>
@@ -761,9 +739,8 @@ body.is-dragging { overflow: hidden; }
     <div class="field-label" style="margin-bottom:6px">Teks WhatsApp</div>
     <textarea id="hasil" readonly></textarea>
     <div class="btn-row">
-      <button class="btn-green" onclick="copyText()"><i class="fa-solid fa-copy"></i> Copy</button>
+      <button class="btn-green" onclick="shareWhatsApp()"><i class="fa-brands fa-whatsapp"></i> Share WhatsApp</button>
       <button id="btnPublish" class="btn-indigo" onclick="publish()"><i class="fa-solid fa-upload"></i> Publish</button>
-      <button class="btn-ghost" onclick="closePreview()">Tutup</button>
     </div>
   </div>
 </div>
@@ -824,7 +801,6 @@ function loadHeader(){
 }
 document.getElementById("tanggal").addEventListener("change",saveHeader);
 document.getElementById("shift").addEventListener("change",saveHeader);
-// teknisi is handled by dropdown
 
 function openForm(){document.getElementById("formModal").classList.add("show");updateMesin();}
 function closeForm(){
@@ -884,7 +860,6 @@ function openMesinDropdown(){
 function closeMesinDropdown(){
   const wrapper=document.getElementById("mesinWrapper");
   wrapper.classList.remove("open");
-  // restore display value if search is empty or unmatched
   const current=document.getElementById("mesin").value;
   if(current) document.getElementById("mesinSearch").value=current;
 }
@@ -907,7 +882,6 @@ function selectMesin(name){
   closeMesinDropdown();
 }
 
-// Close dropdown when clicking outside
 document.addEventListener("click",function(e){
   const wrapper=document.getElementById("mesinWrapper");
   if(wrapper && !wrapper.contains(e.target)) closeMesinDropdown();
@@ -955,7 +929,6 @@ function renderTable(){
     `;
     table.appendChild(card);
   });
-  // re-init sortable after each render
   if(typeof Sortable !== "undefined") initSortable();
 }
 
@@ -991,26 +964,32 @@ function generateReport(){
   for(let area in grouped){
     text+=`\n*${area}*\n`;
     for(let mesin in grouped[area]){
-      text+=`*• ${mesin}*\n`;
+      text+=`**${mesin}*\n`;
       grouped[area][mesin].forEach(d=>{
         text+=`> ${d.downtime}\n`;
-        d.action.split("\n").forEach(l=>{if(l.trim())text+=`- ${l}\n`;});
+        d.action.split("\n").forEach(l=>{if(l.trim())text+=`  - ${l}\n`;});
       });
     }
   }
-  // Append checked kegiatan tambahan at bottom
   const checked = checkedItems.map(i => checklistItems[i]);
   if(checked.length > 0){
-    text += `
-*Kegiatan Tambahan*
-`;
-    checked.forEach(label => { text += `- ${label}
-`; });
+    text += ``;
+    checked.forEach(label => { text += `*${label}\n`; });
   }
   document.getElementById("hasil").value=text;
 }
 
-function copyText(){const el=document.getElementById("hasil");el.select();document.execCommand("copy");alert("Copied!");}
+function shareWhatsApp(){
+  const text=document.getElementById("hasil").value;
+  const encoded=encodeURIComponent(text);
+  window.open("https://wa.me/?text="+encoded,"_blank");
+}
+
+function shareWhatsApp(){
+  const text=document.getElementById("hasil").value;
+  const encoded=encodeURIComponent(text);
+  window.open("https://wa.me/?text="+encoded,"_blank");
+}
 
 async function publish(){
   const btn=document.getElementById("btnPublish");
@@ -1043,7 +1022,6 @@ document.addEventListener("DOMContentLoaded", function(){
   if(activities.length===0)document.getElementById("emptyState").style.display="block";
 });
 
-// Init drag-and-drop
 let sortableInstance = null;
 function initSortable(){
   const el = document.getElementById('activityTable');
@@ -1073,8 +1051,8 @@ function initSortable(){
     }
   });
 }
-/* ─ TEKNISI DROPDOWN ─ */
 
+/* ─ TEKNISI DROPDOWN ─ */
 function renderTekDropdown(){
   const list = document.getElementById("tekList");
   list.innerHTML = tekOptions.map(name => {
@@ -1088,7 +1066,6 @@ function renderTekDropdown(){
 
 function updateTekDisplay(){
   const sel = document.getElementById("tekSelected");
-  const placeholder = document.getElementById("tekPlaceholder");
   document.getElementById("teknisi").value = selectedTeknisi.join(", ");
   saveHeader();
   if(selectedTeknisi.length === 0){
@@ -1129,7 +1106,6 @@ document.addEventListener("click", function(e){
   const w = document.getElementById("tekWrapper");
   if(w && !w.contains(e.target)) w.classList.remove("open");
 });
-
 </script>
 </body>
 </html>
