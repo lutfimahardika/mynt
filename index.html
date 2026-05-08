@@ -88,7 +88,7 @@ body {
 .page {
   max-width: 1100px;
   margin: 0 auto;
-  padding: 28px 20px 100px;
+  padding: 28px 20px 60px;
 }
 
 .page-title { font-size: 22px; font-weight: 800; margin-bottom: 2px; }
@@ -362,14 +362,14 @@ body.is-dragging { overflow: hidden; }
 }
 .btn-green:hover { background:#d1fae5; transform:none; }
 
-.btn-whatsapp {
+.btn-indigo {
   flex:1; display:flex; align-items:center; justify-content:center; gap:6px;
-  background:#25D366; color:white; border:none; border-radius:8px;
+  background:var(--primary); color:white; border:none; border-radius:8px;
   padding:10px 16px;
   font-family:'Plus Jakarta Sans',sans-serif;
   font-size:13px; font-weight:600; cursor:pointer; transition:background .15s;
 }
-.btn-whatsapp:hover { background:#1ebe5d; transform:none; }
+.btn-indigo:hover { background:var(--primary-hover); transform:none; }
 
 #hasil {
   height:260px; font-family:'Courier New',monospace;
@@ -377,14 +377,31 @@ body.is-dragging { overflow: hidden; }
   background:var(--bg); color:var(--text);
 }
 
-.spinner {
-  width:14px; height:14px;
-  border:2px solid rgba(255,255,255,.4); border-top-color:white;
-  border-radius:50%; display:inline-block;
-  animation:spin .6s linear infinite; vertical-align:middle;
+/* PUBLISH BUTTON PROGRESS */
+.btn-indigo {
+  position: relative;
+  overflow: hidden;
 }
-@keyframes spin { to{transform:rotate(360deg);} }
-.loading { opacity:.7; pointer-events:none; }
+.btn-publish-bar {
+  position: absolute;
+  inset: 0;
+  width: 0%;
+  background: rgba(255,255,255,0.18);
+  transition: width .35s cubic-bezier(.4,0,.2,1);
+  pointer-events: none;
+  border-radius: 8px;
+}
+.btn-publish-bar.success { background: rgba(16,185,129,0.35); width: 100% !important; }
+.btn-publish-bar.error   { background: rgba(239,68,68,0.35);  width: 100% !important; }
+
+.btn-publish-label {
+  position: relative;
+  z-index: 1;
+  display: flex; align-items: center; justify-content: center; gap: 6px;
+  transition: opacity .15s;
+}
+
+.loading { opacity:.85; pointer-events:none; cursor:not-allowed; }
 
 /* SEARCHABLE MESIN DROPDOWN */
 .mesin-wrapper {
@@ -671,6 +688,8 @@ body.is-dragging { overflow: hidden; }
 
 </div>
 
+<!-- ❌ FAB dihapus -->
+
 <!-- FORM MODAL -->
 <div id="formModal" class="modal">
   <div class="modal-box">
@@ -727,8 +746,6 @@ body.is-dragging { overflow: hidden; }
 </div>
 
 <!-- PREVIEW MODAL -->
-<!-- ✅ CHANGE 1: Removed "Tutup" button from btn-row -->
-<!-- ✅ CHANGE 2: Removed FAB (+) button -->
 <div id="previewModal" class="modal">
   <div class="modal-box">
     <div class="sheet-handle"></div>
@@ -739,8 +756,13 @@ body.is-dragging { overflow: hidden; }
     <div class="field-label" style="margin-bottom:6px">Teks WhatsApp</div>
     <textarea id="hasil" readonly></textarea>
     <div class="btn-row">
-      <button class="btn-green" onclick="shareWhatsApp()"><i class="fa-brands fa-whatsapp"></i> Share WhatsApp</button>
-      <button id="btnPublish" class="btn-indigo" onclick="publish()"><i class="fa-solid fa-upload"></i> Publish</button>
+      <button class="btn-green" onclick="copyText()"><i class="fa-solid fa-copy"></i> Copy</button>
+      <button id="btnPublish" class="btn-indigo" onclick="publish()">
+        <div class="btn-publish-bar" id="publishBar"></div>
+        <span class="btn-publish-label" id="publishLabel">
+          <i class="fa-solid fa-upload"></i> Publish
+        </span>
+      </button>
     </div>
   </div>
 </div>
@@ -964,7 +986,7 @@ function generateReport(){
   for(let area in grouped){
     text+=`\n*${area}*\n`;
     for(let mesin in grouped[area]){
-      text+=`**${mesin}*\n`;
+      text+=`*${mesin}*\n`;
       grouped[area][mesin].forEach(d=>{
         text+=`> ${d.downtime}\n`;
         d.action.split("\n").forEach(l=>{if(l.trim())text+=`  - ${l}\n`;});
@@ -979,31 +1001,72 @@ function generateReport(){
   document.getElementById("hasil").value=text;
 }
 
-function shareWhatsApp(){
-  const text=document.getElementById("hasil").value;
-  const encoded=encodeURIComponent(text);
-  window.open("https://wa.me/?text="+encoded,"_blank");
-}
+function copyText(){const el=document.getElementById("hasil");el.select();document.execCommand("copy");alert("Copied!");}
 
-function shareWhatsApp(){
-  const text=document.getElementById("hasil").value;
-  const encoded=encodeURIComponent(text);
-  window.open("https://wa.me/?text="+encoded,"_blank");
+function setPublishProgress(pct, labelHTML){
+  const bar = document.getElementById("publishBar");
+  const lbl = document.getElementById("publishLabel");
+  bar.style.width = pct + "%";
+  if(labelHTML !== undefined) lbl.innerHTML = labelHTML;
 }
 
 async function publish(){
-  const btn=document.getElementById("btnPublish");
-  btn.classList.add("loading");btn.innerHTML=`<span class="spinner"></span> Publishing...`;btn.disabled=true;
-  const tanggal=document.getElementById("tanggal").value;
-  const shift=document.getElementById("shift").value;
-  const teknisi=document.getElementById("teknisi").value;
-  const data=activities.map(a=>({tanggal,shift,teknisi,area:a.area,mesin:a.mesin,downtime:a.downtime,action:a.action}));
-  try{
-    await fetch(scriptURL,{method:"POST",body:JSON.stringify(data)});
-    resetData();closePreview();alert("Berhasil Publish!");
-  }catch{alert("Gagal Publish.");}
-  btn.classList.remove("loading");btn.innerHTML=`<i class="fa-solid fa-upload"></i> Publish`;btn.disabled=false;
+  const btn  = document.getElementById("btnPublish");
+  const bar  = document.getElementById("publishBar");
+  const lbl  = document.getElementById("publishLabel");
+
+  // Reset
+  bar.className = "btn-publish-bar";
+  btn.disabled = true;
+  btn.classList.add("loading");
+
+  const steps = [
+    { pct: 15,  ms: 200, html: '<i class="fa-solid fa-database"></i> Menyiapkan...' },
+    { pct: 35,  ms: 280, html: '<i class="fa-solid fa-wifi"></i> Menghubungkan...' },
+    { pct: 60,  ms: 240, html: '<i class="fa-solid fa-paper-plane"></i> Mengirim...' },
+  ];
+
+  for(const s of steps){
+    setPublishProgress(s.pct, s.html);
+    await delay(s.ms);
+  }
+
+  const tanggal = document.getElementById("tanggal").value;
+  const shift   = document.getElementById("shift").value;
+  const teknisi = document.getElementById("teknisi").value;
+  const data    = activities.map(a=>({tanggal,shift,teknisi,area:a.area,mesin:a.mesin,downtime:a.downtime,action:a.action}));
+
+  try {
+    await fetch(scriptURL, {method:"POST", body:JSON.stringify(data)});
+
+    setPublishProgress(85, '<i class="fa-solid fa-floppy-disk"></i> Menyimpan...');
+    await delay(300);
+    setPublishProgress(100, '<i class="fa-solid fa-check"></i> Berhasil!');
+    bar.classList.add("success");
+    await delay(1000);
+
+    resetData();
+    closePreview();
+    // Reset button after close
+    bar.className = "btn-publish-bar";
+    bar.style.width = "0%";
+    lbl.innerHTML = '<i class="fa-solid fa-upload"></i> Publish';
+
+  } catch(e) {
+    setPublishProgress(100, '<i class="fa-solid fa-xmark"></i> Gagal!');
+    bar.classList.add("error");
+    await delay(2000);
+    // Reset button
+    bar.className = "btn-publish-bar";
+    bar.style.width = "0%";
+    lbl.innerHTML = '<i class="fa-solid fa-upload"></i> Publish';
+  }
+
+  btn.disabled = false;
+  btn.classList.remove("loading");
 }
+
+function delay(ms){ return new Promise(r => setTimeout(r, ms)); }
 
 function resetData(){activities=[];checkedItems=[];localStorage.removeItem("activities");localStorage.removeItem("checkedItems");renderTable();renderChecklistList();}
 function saveToLocal(){localStorage.setItem("activities",JSON.stringify(activities));saveHeader();}
@@ -1106,6 +1169,7 @@ document.addEventListener("click", function(e){
   const w = document.getElementById("tekWrapper");
   if(w && !w.contains(e.target)) w.classList.remove("open");
 });
+
 </script>
 </body>
 </html>
